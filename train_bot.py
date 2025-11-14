@@ -31,8 +31,18 @@ def extract_features(tokens: List[str]) -> List[Dict[str, Any]]:
             'has_apostrophe': "'" in token,
             
             # --- Context features (properties of surrounding words) [cite: 71] ---
-            'prev_word_is_fil': False, # You would set this in a more complex loop
-            'next_word_is_eng': False, # You would set this in a more complex loop
+            'prev_word_is_fil': False, 
+            'next_word_is_eng': False, 
+
+            # --- Additional features based on linguistic analysis ---
+            'starts_with_mag': token.startswith('mag'),
+            'starts_with_pin': token.startswith('pin'),
+            'contains_um': 'um' in token[1:], # Check for infix 'um'
+            'ends_in_an': token.endswith('an'),
+            
+            'ends_in_s': token.endswith('s'),
+            'ends_in_ed': token.endswith('ed'),
+            'ends_in_ing': token.endswith('ing')
         }
         feature_list.append(features)
         
