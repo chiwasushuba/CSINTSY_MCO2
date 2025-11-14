@@ -1,50 +1,95 @@
-"""
-pinoybot.py
-
-PinoyBot: Filipino Code-Switched Language Identifier
-
-This module provides the main tagging function for the PinoyBot project, which identifies the language of each word in a code-switched Filipino-English text. The function is designed to be called with a list of tokens and returns a list of tags ("ENG", "FIL", or "OTH").
-
-Model training and feature extraction should be implemented in a separate script. The trained model should be saved and loaded here for prediction.
-"""
 
 import os
 import pickle
-from typing import List
+from typing import List, Dict, Any
 
-# Main tagging function
+# Define the model filename
+MODEL_FILE = 'pinoybot_model.pkl'
+
+def extract_features(tokens: List[str]) -> List[Dict[str, Any]]:
+    """
+    Extracts features for each token in a list.
+    This is a basic example. You MUST expand this based on your
+    feature engineering.
+    """
+    feature_list = []
+    for i, token in enumerate(tokens):
+        features = {
+            'len': len(token),
+            'is_upper': token.isupper(),
+            'is_title': token.istitle(),
+            'is_lower': token.islower(),
+            'vowel_ratio': sum(1 for c in token.lower() if c in 'aeiou') / (len(token) + 0.01),
+            
+            'ends_in_ng': token.endswith('ng'),
+            'starts_with_ma': token.startswith('ma'),
+            'starts_with_nag': token.startswith('nag'),
+
+            'has_hyphen': '-' in token,
+            'has_apostrophe': "'" in token,
+            
+            'prev_word_is_fil': False, 
+            'next_word_is_eng': False, 
+        }
+        feature_list.append(features)
+    
+    return feature_list
+
+def load_model(model_path: str):
+    """Loads the bundled model and vectorizer from disk."""
+    if not os.path.exists(model_path):
+        print(f"Error: Model file '{model_path}' not found.")
+        print("Please run 'train_model.py' first to create the model file.")
+        return None, None
+        
+    with open(model_path, 'rb') as f:
+        bundle = pickle.load(f)
+    
+    return bundle['model'], bundle['vectorizer']
+
+model, vectorizer = load_model(MODEL_FILE)
+
 def tag_language(tokens: List[str]) -> List[str]:
     """
     Tags each token in the input list with its predicted language.
+    
     Args:
         tokens: List of word tokens (strings).
+    
     Returns:
         tags: List of predicted tags ("ENG", "FIL", or "OTH"), one per token.
     """
-    # 1. Load your trained model from disk (e.g., using pickle or joblib)
-    #    Example: with open('trained_model.pkl', 'rb') as f: model = pickle.load(f)
-    #    (Replace with your actual model loading code)
+    
+    if model is None or vectorizer is None:
+        return ['OTH'] * len(tokens)
 
-    # 2. Extract features from the input tokens to create the feature matrix
-    #    Example: features = ... (your feature extraction logic here)
+    features_dict_list = extract_features(tokens)
 
-    # 3. Use the model to predict the tags for each token
-    #    Example: predicted = model.predict(features)
+    X_vectorized = vectorizer.transform(features_dict_list)
 
-    # 4. Convert the predictions to a list of strings ("ENG", "FIL", or "OTH")
-    #    Example: tags = [str(tag) for tag in predicted]
+    predicted_tags = model.predict(X_vectorized)
 
-    # 5. Return the list of tags
-    #    return tags
-
-    # You can define other functions, import new libraries, or add other Python files as needed, as long as
-    # the tag_language function is retained and correctly accomplishes the expected task.
-
-    # Currently, the bot just tags every token as FIL. Replace this with your more intelligent predictions.
-    return ['FIL' for i in tokens]
+    tags = list(predicted_tags)
+    
+    return tags
 
 if __name__ == "__main__":
-    # Example usage
-    example_tokens = ["Love", "kita", "."]
-    print("Tokens:", example_tokens)
-    tags = tag_language(example_tokens)
+    
+    if model is not None:
+        example_tokens = ["Love", "kita", "."]
+        print("Tokens:", example_tokens)
+        tags = tag_language(example_tokens)
+        print("Tags:", tags) # Expected: ['ENG', 'FIL', 'OTH']
+        
+        example_tokens_2 = ["nag", "lunch", "na", "sa", "DLSU"]
+        print("\nTokens:", example_tokens_2)
+        tags_2 = tag_language(example_tokens_2)
+        print("Tags:", tags_2) # Expected: ['FIL', 'ENG', 'FIL', 'FIL', 'ENG'] (based on dummy data)
+
+        example_tokens_3 = ["I", "will", "meet", "you", "sa", "park"]
+        print("\nTokens:", example_tokens_3)
+        tags_3 = tag_language(example_tokens_3)
+        print("Tags:", tags_3) 
+    
+    else:
+        print("\nCannot run example: Model not loaded.")
