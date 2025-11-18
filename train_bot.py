@@ -9,338 +9,272 @@ from sklearn.utils.class_weight import compute_class_weight
 import numpy as np
 import re
 
-# --- 1. Configuration ---
-DATASET_FILE = 'Dataset/MCO2 Dataset (full).xlsx' # Path to your dataset file
+# --- Configuration ---
+DATASET_FILE = 'TaggedDataset.xlsx'
+OTHER_DATASET_FILE = 'OtherDataset.xlsx' 
 MODEL_FILE = 'pinoybot_model.pkl'
 
-# --- 2. Helper Functions ---
-
-# Common English words that should always be tagged as English
-COMMON_ENGLISH_WORDS = {
-    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should',
-    'could', 'may', 'might', 'must', 'can', 'to', 'of', 'in', 'for', 'on',
-    'at', 'by', 'with', 'from', 'about', 'into', 'through', 'during',
-    'before', 'after', 'above', 'below', 'between', 'under', 'again',
-    'further', 'then', 'once', 'here', 'there', 'when', 'where', 'why',
-    'how', 'all', 'both', 'each', 'few', 'more', 'most', 'other', 'some',
-    'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than',
-    'too', 'very', 'just', 'but', 'go', 'going', 'went', 'gone',
-    'make', 'made', 'making', 'get', 'getting', 'got', 'take', 'taking',
-    'took', 'taken', 'come', 'coming', 'came', 'know', 'knowing', 'knew',
-    'think', 'thinking', 'thought', 'see', 'seeing', 'saw', 'seen',
-    'want', 'wanted', 'wanting', 'use', 'using', 'used', 'find', 'finding',
-    'found', 'give', 'giving', 'gave', 'given', 'tell', 'telling', 'told',
-    'work', 'working', 'worked', 'call', 'calling', 'called', 'try',
-    'trying', 'tried', 'ask', 'asking', 'asked', 'need', 'needing',
-    'needed', 'feel', 'feeling', 'felt', 'become', 'becoming', 'became',
-    'leave', 'leaving', 'left', 'put', 'putting', 'let', 'letting',
-    'mean', 'meaning', 'meant', 'keep', 'keeping', 'kept', 'begin',
-    'beginning', 'began', 'begun', 'seem', 'seeming', 'seemed', 'help',
-    'helping', 'helped', 'show', 'showing', 'showed', 'shown', 'hear',
-    'hearing', 'heard', 'play', 'playing', 'played', 'run', 'running',
-    'ran', 'move', 'moving', 'moved', 'live', 'living', 'lived',
-    'believe', 'believing', 'believed', 'bring', 'bringing', 'brought',
-    'write', 'writing', 'wrote', 'written', 'sit', 'sitting', 'sat',
-    'stand', 'standing', 'stood', 'lose', 'losing', 'lost', 'pay',
-    'paying', 'paid', 'meet', 'meeting', 'met', 'include', 'including',
-    'included', 'continue', 'continuing', 'continued', 'set', 'setting',
-    'learn', 'learning', 'learned', 'learnt', 'change', 'changing',
-    'changed', 'lead', 'leading', 'led', 'understand', 'understanding',
-    'understood', 'watch', 'watching', 'watched', 'follow', 'following',
-    'followed', 'stop', 'stopping', 'stopped', 'create', 'creating',
-    'created', 'speak', 'speaking', 'spoke', 'spoken', 'read', 'reading',
-    'allow', 'allowing', 'allowed', 'add', 'adding', 'added', 'spend',
-    'spending', 'spent', 'grow', 'growing', 'grew', 'grown', 'open',
-    'opening', 'opened', 'walk', 'walking', 'walked', 'win', 'winning',
-    'won', 'offer', 'offering', 'offered', 'remember', 'remembering',
-    'remembered', 'love', 'loving', 'loved', 'consider', 'considering',
-    'considered', 'appear', 'appearing', 'appeared', 'buy', 'buying',
-    'bought', 'serve', 'serving', 'served', 'die', 'dying', 'died',
-    'send', 'sending', 'sent', 'build', 'building', 'built', 'stay',
-    'staying', 'stayed', 'fall', 'falling', 'fell', 'fallen', 'cut',
-    'cutting', 'reach', 'reaching', 'reached', 'kill', 'killing',
-    'killed', 'raise', 'raising', 'raised', 'pass', 'passing', 'passed',
-    'sell', 'selling', 'sold', 'decide', 'deciding', 'decided', 'return',
-    'returning', 'returned', 'explain', 'explaining', 'explained',
-    'hope', 'hoping', 'hoped', 'develop', 'developing', 'developed',
-    'carry', 'carrying', 'carried', 'break', 'breaking', 'broke',
-    'broken', 'receive', 'receiving', 'received', 'agree', 'agreeing',
-    'agreed', 'support', 'supporting', 'supported', 'hit', 'hitting',
-    'produce', 'producing', 'produced', 'eat', 'eating', 'ate', 'eaten',
-    'cover', 'covering', 'covered', 'catch', 'catching', 'caught',
-    'draw', 'drawing', 'drew', 'drawn', 'choose', 'choosing', 'chose',
-    'chosen', 'mall', 'machine', 'computer', 'phone', 'internet',
-    'facebook', 'google', 'youtube', 'email', 'website', 'online',
-    'download', 'upload', 'click', 'search', 'post', 'share', 'like',
-    'comment', 'message', 'chat', 'call', 'text', 'video', 'photo',
-    'picture', 'music', 'game', 'app', 'software', 'hardware', 'data',
-    'file', 'folder', 'document', 'report', 'project', 'assignment',
-    'homework', 'test', 'exam', 'quiz', 'grade', 'score', 'class',
-    'student', 'teacher', 'professor', 'school', 'college', 'university',
-}
-
-# Common Filipino words that should always be tagged as Filipino
-COMMON_FILIPINO_WORDS = {
-    'ang', 'ng', 'sa', 'mga', 'na', 'ay', 'at', 'ko', 'mo', 'niya',
-    'natin', 'namin', 'ninyo', 'nila', 'ako', 'ikaw', 'siya', 'tayo',
-    'kami', 'kayo', 'sila', 'ito', 'iyan', 'iyon', 'dito', 'diyan',
-    'doon', 'nito', 'niyan', 'niyon', 'para', 'dahil', 'kasi', 'pero',
-    'kung', 'kapag', 'habang', 'kahit', 'man', 'din', 'rin', 'daw',
-    'raw', 'ba', 'po', 'opo', 'hindi', 'wala', 'walang', 'may', 'mayroon',
-    'kaya', 'gusto', 'ayaw', 'dapat', 'pwede', 'puwede', 'maaari',
-    'marami', 'konti', 'lahat', 'ilan', 'bawat', 'ibang', 'mismo',
-    'sabi', 'sabihin', 'kailangan', 'kelangan', 'noon', 'ngayon',
-    'bukas', 'kahapon', 'mamaya', 'kanina', 'matagal', 'sandali',
-    'palagi', 'minsan', 'lagi', 'madalas', 'bihira', 'bago', 'luma',
-    'maganda', 'pangit', 'mabuti', 'masama', 'malaki', 'maliit',
-    'mahaba', 'maikli', 'matanda', 'bata', 'matamis', 'mapait',
-    'maanghang', 'masarap', 'masaya', 'malungkot', 'galit', 'takot',
-}
-
 def get_final_label(row):
-    """
-    Logic to choose between the original LLM label or the human corrected label.
-    Assumes empty/NaN in 'is_correct' means the original label is accepted.
-    """
     is_correct = row.get('is_correct')
     corrected = row.get('corrected_label')
-    
-    # Normalize input to string for checking
     s_correct = str(is_correct).strip().lower()
     
-    # Check for "no", "false", "0" indicating the original label is wrong
     if s_correct in ['no', 'false', '0', 'f']:
-        # If corrected label exists, use it. Otherwise fallback to original.
         if pd.notna(corrected) and str(corrected).strip() != '':
             return str(corrected).strip()
-            
     return str(row['label']).strip()
 
 def map_to_final_tags(tag):
-    """
-    Maps raw tags (SYM, NUM, NE, etc.) to the required 3 classes: FIL, ENG, OTH.
-    """
-    tag = tag.upper().strip()
-    
-    # Direct mappings
-    if tag in ['FIL', 'TAG', 'TL']: 
-        return 'FIL'
-    if tag in ['ENG', 'EN']: 
-        return 'ENG'
-    
-    # Intra-word code switching is counted as Filipino (per specs: "naglunch")
-    if tag == 'CS': 
-        return 'FIL'
-        
-    if tag == 'NE':
-        return 'OTH' # Or 'ENG' if you prefer, but OTH is safer for names like "Rizal"
-        
-    # Everything else (SYM, NUM, PUNCT, UNK, etc.)
+    tag = str(tag).upper().strip()
+    if tag in ['FIL', 'TAG', 'TL']: return 'FIL'
+    if tag in ['ENG', 'EN', 'ENGLISH']: return 'ENG'
+    if tag == 'CS': return 'FIL'
+    if tag in ['NE', 'NUM', 'SYM', 'ABB', 'EXPR', 'UNK']: return 'OTH'
     return 'OTH'
 
-def extract_features(tokens):
-    """Enhanced feature extraction for better Filipino/English discrimination"""
-    feature_list = []
-    padded = ['_START_', '_START2_'] + tokens + ['_END_', '_END2_']
+def strong_english_indicators(word):
+    """Strong rule-based English indicators"""
+    word_lower = word.lower()
     
-    for i in range(2, len(padded) - 2):
+    # English patterns
+    strong_indicators = [
+        # English suffixes
+        word_lower.endswith('ing'), word_lower.endswith('ed'), word_lower.endswith('tion'),
+        word_lower.endswith('sion'), word_lower.endswith('ment'), word_lower.endswith('ness'),
+        word_lower.endswith('ity'), word_lower.endswith('ive'), word_lower.endswith('ous'),
+        word_lower.endswith('able'), word_lower.endswith('ible'), word_lower.endswith('ly'),
+        word_lower.endswith('er'), word_lower.endswith('est'), word_lower.endswith('ful'),
+
+        word_lower.endswith('ove'), 
+        word_lower.endswith('upt'),
+        word_lower.endswith('ine'),
+        word_lower.endswith('all'),
+        word_lower == 'the', word_lower == 'go', word_lower == 'about',
+        "let's" in word_lower,
+        
+        # English prefixes
+        word_lower.startswith('un'), word_lower.startswith('re'), word_lower.startswith('pre'),
+        word_lower.startswith('dis'), word_lower.startswith('mis'), word_lower.startswith('non'),
+        word_lower.startswith('over'), word_lower.startswith('under'), word_lower.startswith('inter'),
+        
+        # English character patterns
+        'th' in word_lower, 'sh' in word_lower, 'ch' in word_lower, 
+        'wh' in word_lower, 'ph' in word_lower, 'gh' in word_lower,
+        'ck' in word_lower, 'ough' in word_lower, 'eigh' in word_lower,
+    ]
+    
+    return sum(strong_indicators)
+
+def strong_filipino_indicators(word):
+    """Strong rule-based Filipino indicators"""
+    word_lower = word.lower()
+    
+    # Filipino patterns
+    strong_indicators = [
+        # Filipino affixes
+        word_lower.startswith('mag'), word_lower.startswith('nag'), word_lower.startswith('pag'),
+        word_lower.startswith('pang'), word_lower.startswith('mang'), word_lower.startswith('nang'),
+        word_lower.startswith('ka'), word_lower.startswith('pa'), word_lower.startswith('ma'),
+        word_lower.startswith('na'), word_lower.startswith('um'),
+        
+        # Filipino suffixes
+        word_lower.endswith('ng'), word_lower.endswith('an'), word_lower.endswith('in'),
+        word_lower.endswith('han'), word_lower.endswith('hin'), word_lower.endswith('ito'),
+        word_lower.endswith('ate'), word_lower.endswith('ada'), word_lower.endswith('ido'),
+        
+        # Common Filipino words
+        word_lower in ['ang', 'ng', 'sa', 'mga', 'na', 'ay', 'kami', 'namin', 'kita',
+                      'ako', 'ikaw', 'siya', 'tayo', 'kayo', 'sila', 'ito', 'iyan',
+                      'dito', 'doon', 'kung', 'kapag', 'pero', 'at', 'o', 'ni', 'kay'],
+        
+        # Reduplication
+        len(word_lower) > 4 and word_lower[:2] == word_lower[2:4],
+    ]
+    
+    return sum(strong_indicators)
+
+def extract_features_smart(tokens):
+    """Smart feature extraction that uses rule-based pre-filtering"""
+    feature_list = []
+    padded = ['_START_'] + tokens + ['_END_']
+
+    for i in range(1, len(padded) - 1):
         token = padded[i]
         prev_word = padded[i-1].lower()
-        prev2_word = padded[i-2].lower()
         next_word = padded[i+1].lower()
-        next2_word = padded[i+2].lower()
         word_lower = token.lower()
+
+        # For non-alphabetic tokens
+        if not token.isalpha():
+            features = {
+                'is_symbol': not token.isalnum(),
+                'is_number': token.isdigit(),
+                'len': len(token),
+            }
+            feature_list.append(features)
+            continue
+
+        # Calculate strong indicators
+        eng_strength = strong_english_indicators(token)
+        fil_strength = strong_filipino_indicators(token)
         
-        # Character analysis
+        # Basic character features
         vowels = sum(1 for c in word_lower if c in 'aeiou')
-        consonants = sum(1 for c in word_lower if c.isalpha() and c not in 'aeiou')
         vowel_ratio = vowels / len(word_lower) if len(word_lower) > 0 else 0
         
-        # Word list membership
-        is_common_english = word_lower in COMMON_ENGLISH_WORDS
-        is_common_filipino = word_lower in COMMON_FILIPINO_WORDS
+        # Character n-grams
+        char_trigrams = [word_lower[i:i+3] for i in range(len(word_lower)-2)] if len(word_lower) >= 3 else []
         
         features = {
-            # Basic features
-            'word': word_lower,
+            # Rule based strengths
+            'english_strength': eng_strength,
+            'filipino_strength': fil_strength,
+            'strength_difference': eng_strength - fil_strength,
+            
+            # Basic characteristics
             'len': len(token),
-            'is_upper': token.isupper(),
-            'is_title': token.istitle(),
             'vowel_ratio': vowel_ratio,
-            'starts_vowel': word_lower[0] in 'aeiou' if word_lower else False,
+            'starts_with_vowel': word_lower[0] in 'aeiou' if word_lower else False,
             
-            # Word list membership (STRONG signals)
-            'is_common_english': is_common_english,
-            'is_common_filipino': is_common_filipino,
+            # English character patterns
+            'has_english_clusters': any(cluster in word_lower for cluster in ['th', 'sh', 'ch', 'wh', 'ph', 'gh']),
+            'has_rare_letters': any(letter in word_lower for letter in 'fvxz'),
+            'english_trigram_count': sum(1 for tg in char_trigrams if tg in ['ing', 'ion', 'ent', 'ess', 'ble', 'ive', 'ous']),
             
-            # prefixes and suffixes
-            'prefix_2': word_lower[:2] if len(word_lower) >= 2 else '',
-            'prefix_3': word_lower[:3] if len(word_lower) >= 3 else '',
-            'suffix_2': word_lower[-2:] if len(word_lower) >= 2 else '',
-            'suffix_3': word_lower[-3:] if len(word_lower) >= 3 else '',
+            # Filipino character patterns
+            'filipino_trigram_count': sum(1 for tg in char_trigrams if tg in ['ang', 'ng', 'mag', 'nag', 'pag', 'han', 'hin', 'ito']),
+            'has_double_vowel': any(word_lower[i] == word_lower[i+1] and word_lower[i] in 'aeiou' for i in range(len(word_lower)-1)),
             
-            # --- FILIPINO STRONG SIGNALS ---
-            'ends_ng': word_lower.endswith('ng') and not word_lower.endswith('ing'),
-            'starts_mag': word_lower.startswith('mag'),
-            'starts_nag': word_lower.startswith('nag'),
-            'starts_pag': word_lower.startswith('pag'),
-            'starts_ka': word_lower.startswith('ka'),
-            'starts_pa': word_lower.startswith('pa'),
-            'starts_ma': word_lower.startswith('ma'),
-            'ends_han': word_lower.endswith('han'),
-            'ends_an': word_lower.endswith('an') and not word_lower.endswith('tion'),
-            'ends_in': word_lower.endswith('in') and not word_lower.endswith('ing'),
-            'has_duplicate_syllable': len(word_lower) > 4 and word_lower[:2] == word_lower[2:4],
+            # Context features
+            'prev_is_filipino': prev_word in ['ang', 'ng', 'sa', 'mga', 'na', 'ay'],
+            'next_is_filipino': next_word in ['ang', 'ng', 'sa', 'mga', 'na', 'ay'],
+            'prev_is_english': prev_word in ['the', 'to', 'of', 'and', 'is', 'in', 'on', 'at'],
+            'next_is_english': next_word in ['the', 'to', 'of', 'and', 'is', 'in', 'on', 'at'],
             
-            # --- ENGLISH STRONG SIGNALS ---
-            'ends_ing': word_lower.endswith('ing'),
-            'ends_ed': word_lower.endswith('ed'),
-            'ends_tion': word_lower.endswith('tion'),
-            'ends_sion': word_lower.endswith('sion'),
-            'ends_ity': word_lower.endswith('ity'),
-            'ends_ment': word_lower.endswith('ment'),
-            'ends_ble': word_lower.endswith('ble'),
-            'ends_ness': word_lower.endswith('ness'),
-            'ends_ly': word_lower.endswith('ly'),
-            'ends_er': word_lower.endswith('er'),
-            'ends_est': word_lower.endswith('est'),
-            'ends_ful': word_lower.endswith('ful'),
-            'starts_un': word_lower.startswith('un'),
-            'starts_re': word_lower.startswith('re'),
-            'starts_pre': word_lower.startswith('pre'),
-            
-            # --- CONSONANT CLUSTERS (English-heavy) ---
-            'has_th': 'th' in word_lower,
-            'has_ph': 'ph' in word_lower,
-            'has_ct': 'ct' in word_lower,
-            'has_st': 'st' in word_lower,
-            'has_sh': 'sh' in word_lower,
-            'has_ch': 'ch' in word_lower,
-            'has_ck': 'ck' in word_lower,
-            'has_wh': 'wh' in word_lower,
-            
-            # rate letters daw ng Filipino
-            'has_f': 'f' in word_lower,
-            'has_v': 'v' in word_lower,
-            'has_z': 'z' in word_lower,
-            'has_x': 'x' in word_lower,
-            'has_c': 'c' in word_lower and 'ch' not in word_lower,
-            
-            # --- CONTEXT CLUES (Filipino) ---
-            'prev_word': prev_word,
-            'prev2_word': prev2_word,
-            'next_word': next_word,
-            'next2_word': next2_word,
-            'prev_ang': prev_word == 'ang',
-            'prev_ng': prev_word == 'ng',
-            'prev_sa': prev_word == 'sa',
-            'prev_mga': prev_word == 'mga',
-            'prev_na': prev_word == 'na',
-            'prev_ay': prev_word == 'ay',
-            'next_ang': next_word == 'ang',
-            'next_ng': next_word == 'ng',
-            
-            # bigram context (language consistency)
-            'prev_is_common_eng': prev_word in COMMON_ENGLISH_WORDS,
-            'prev_is_common_fil': prev_word in COMMON_FILIPINO_WORDS,
-            'prev2_is_common_eng': prev2_word in COMMON_ENGLISH_WORDS,
-            'prev2_is_common_fil': prev2_word in COMMON_FILIPINO_WORDS,
-            'next_is_common_eng': next_word in COMMON_ENGLISH_WORDS,
-            'next_is_common_fil': next_word in COMMON_FILIPINO_WORDS,
-            
-            # --- CONTEXT CLUES (English) ---
-            'prev_the': prev_word == 'the',
-            'prev_a': prev_word == 'a',
-            'prev_an': prev_word == 'an',
-            'prev_is': prev_word == 'is',
-            'prev_are': prev_word == 'are',
-            'prev_to': prev_word == 'to',
-            'prev_of': prev_word == 'of',
-            'prev_in': prev_word == 'in',
-            'next_the': next_word == 'the',
-            'next_is': next_word == 'is',
-            
-            # english bigrams (strong signals)
-            'bigram_lets_go': prev_word == "let's" or prev_word == 'lets',
-            'bigram_to_the': prev_word == 'to' and next_word == 'the',
-            'bigram_machine_learning': (prev_word == 'machine' or next_word == 'machine'),
-            
-            # hyphenation and special chars
+            # Structural features
             'has_hyphen': '-' in token,
+            'has_apostrophe': "'" in token,
         }
-        feature_list.append(features)
         
+        feature_list.append(features)
+    
     return feature_list
 
+def create_balanced_dataset(df):
+    """Create a more balanced dataset by oversampling English examples"""
+    # Separate classes
+    eng_df = df[df['target'] == 'ENG']
+    fil_df = df[df['target'] == 'FIL']
+    oth_df = df[df['target'] == 'OTH']
+    
+    print(f"Original: ENG={len(eng_df)}, FIL={len(fil_df)}, OTH={len(oth_df)}")
+    
+    # Oversample English to match at least 30% of Filipino
+    target_eng_size = max(len(eng_df), int(0.3 * len(fil_df)))
+    
+    if len(eng_df) < target_eng_size:
+        # Repeat English samples
+        repeat_factor = target_eng_size // len(eng_df) + 1
+        eng_df_oversampled = pd.concat([eng_df] * repeat_factor, ignore_index=True)
+        eng_df_oversampled = eng_df_oversampled.head(target_eng_size)
+        print(f"Oversampled ENG from {len(eng_df)} to {len(eng_df_oversampled)}")
+    else:
+        eng_df_oversampled = eng_df
+    
+    # Combine back
+    balanced_df = pd.concat([eng_df_oversampled, fil_df, oth_df], ignore_index=True)
+    print(f"Balanced: ENG={len(eng_df_oversampled)}, FIL={len(fil_df)}, OTH={len(oth_df)}")
+    
+    return balanced_df
 
 def main():
-    print("Loading dataset...")
-    try:
-        df = pd.read_csv(DATASET_FILE)
-    except Exception:
-        df = pd.read_excel(DATASET_FILE.replace('.csv', ''))
+    print("Loading datasets with SMART approach...")
 
+    # Load datasets
+    df1 = pd.read_excel(DATASET_FILE)
+    df2 = pd.read_excel(OTHER_DATASET_FILE)
+    df = pd.concat([df1, df2], ignore_index=True)
+    
+    print(f"Combined dataset: {len(df)} total rows")
+
+    # Clean data
     if 'is_dirty' in df.columns:
         df = df[df['is_dirty'] != True]
 
+    # Process labels
     print("Processing labels...")
     df['resolved_label'] = df.apply(get_final_label, axis=1)
-    
     df['target'] = df['resolved_label'].apply(map_to_final_tags)
     
-    print("Extracting features...")
-    all_features = []
-    all_labels = []
+    # Create balanced dataset
+    df_balanced = create_balanced_dataset(df)
     
-    for _, group in df.groupby('sentence_id'):
-        words = group['word'].astype(str).tolist()
-        tags = group['target'].tolist()
-        
-        sentence_features = extract_features(words)
-        
-        all_features.extend(sentence_features)
-        all_labels.extend(tags)
+    # Split by sentences
+    sentence_ids = df_balanced['sentence_id'].unique()
+    
+    train_val_sentences, test_sentences = train_test_split(
+        sentence_ids, test_size=0.15, random_state=42
+    )
+    train_sentences, val_sentences = train_test_split(
+        train_val_sentences, test_size=0.15/0.85, random_state=42
+    )
+    
+    # Create splits
+    train_df = df_balanced[df_balanced['sentence_id'].isin(train_sentences)]
+    val_df = df_balanced[df_balanced['sentence_id'].isin(val_sentences)]
+    test_df = df_balanced[df_balanced['sentence_id'].isin(test_sentences)]
+    
+    # Extract features
+    def extract_from_df(dataframe):
+        features, labels = [], []
+        for _, group in dataframe.groupby('sentence_id'):
+            words = group['word'].astype(str).tolist()
+            tags = group['target'].tolist()
+            sentence_features = extract_features_smart(words)
+            features.extend(sentence_features)
+            labels.extend(tags)
+        return features, labels
+    
+    X_train, y_train = extract_from_df(train_df)
+    X_val, y_val = extract_from_df(val_df)
+    X_test, y_test = extract_from_df(test_df)
+    
+    print(f"Data split: {len(X_train)} train, {len(X_val)} val, {len(X_test)} test")
+    print(f"Training class distribution: {pd.Series(y_train).value_counts().to_dict()}")
 
-    X_train, X_temp, y_train, y_temp = train_test_split(all_features, all_labels, test_size=0.3, random_state=42)
-    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
-    
-    print(f"Training on {len(X_train)} tokens...")
-    
-    unique_classes = np.unique(y_train)
-    class_weights = compute_class_weight('balanced', classes=unique_classes, y=y_train)
-    class_weight_dict = dict(zip(unique_classes, class_weights))
-    
-    print(f"Class distribution: {pd.Series(y_train).value_counts().to_dict()}")
-    print(f"Class weights: {class_weight_dict}")
-    
+    # Use aggressive class weighting
+    class_counts = pd.Series(y_train).value_counts()
+    class_weight_dict = {
+        'ENG': class_counts.max() / class_counts.get('ENG', 1) * 2,  # Double weight for English
+        'FIL': 1.0,
+        'OTH': class_counts.max() / class_counts.get('OTH', 1)
+    }
+    print(f"Aggressive class weights: {class_weight_dict}")
+
+    # Use simpler but more effective model
     pipeline = Pipeline([
         ('vectorizer', DictVectorizer(sparse=True)),
         ('classifier', RandomForestClassifier(
-            n_estimators=100,          # More trees = better performance
-            max_depth=20,              # Prevent overfitting
-            min_samples_split=5,
-            min_samples_leaf=2,
-            class_weight=class_weight_dict,  # Handle class imbalance
+            n_estimators=100,
+            max_depth=20,
+            min_samples_split=2,
+            min_samples_leaf=1,
+            class_weight=class_weight_dict,
             random_state=42,
-            n_jobs=-1                  # Use all CPU cores
+            n_jobs=-1
         ))
     ])
-    
-    # --- Train ---
-    print("Training Random Forest...")
+
+    print("\nTraining model with SMART features...")
     pipeline.fit(X_train, y_train)
-    
-    # --- Evaluate ---
+
+    # Evaluate
     print("\nValidation Results:")
     y_pred_val = pipeline.predict(X_val)
     print(classification_report(y_val, y_pred_val))
-    
-    print("\nTest Results:")
-    y_pred_test = pipeline.predict(X_test)
-    print(classification_report(y_test, y_pred_test))
-    
-    # --- Save ---
+    print(f"Validation Accuracy: {accuracy_score(y_val, y_pred_val):.4f}")
+
+    # Save model
     with open(MODEL_FILE, 'wb') as f:
         pickle.dump(pipeline, f)
     print(f"\nModel saved to {MODEL_FILE}")
