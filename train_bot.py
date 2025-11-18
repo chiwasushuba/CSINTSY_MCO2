@@ -188,21 +188,21 @@ def create_balanced_dataset(df):
     return balanced_df
 
 def main():
-    print("Loading datasets with SMART approach...")
+    print("Loading datasets...\n")
 
     # Load datasets
     df1 = pd.read_excel(DATASET_FILE)
     df2 = pd.read_excel(OTHER_DATASET_FILE)
     df = pd.concat([df1, df2], ignore_index=True)
     
-    print(f"Combined dataset: {len(df)} total rows")
+    print(f"Combined dataset: {len(df)} total rows\n")
 
     # Clean data
     if 'is_dirty' in df.columns:
         df = df[df['is_dirty'] != True]
 
     # Process labels
-    print("Processing labels...")
+    print("Processing labels...\n")
     df['resolved_label'] = df.apply(get_final_label, axis=1)
     df['target'] = df['resolved_label'].apply(map_to_final_tags)
     
@@ -265,7 +265,7 @@ def main():
         ))
     ])
 
-    print("\nTraining model with SMART features...")
+    print("\nTraining model...")
     pipeline.fit(X_train, y_train)
 
     # Evaluate
